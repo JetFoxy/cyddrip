@@ -10,26 +10,23 @@ public class WebServicePump {
     double iob;
     double bat;
 
-    public WebServicePump( Bundle bundle) {
+    public WebServicePump(Bundle bundle) {
+        reservoir = 0;
+        iob = 0;
+        bat = 0;
+
+        if (bundle == null) return;
+
         String pumpJSON = bundle.getString("pumpJSON");
-        JSONObject json = null;
-        if (pumpJSON != null) {
-            try {
-                json = new JSONObject(pumpJSON);
-            } catch (JSONException e) {
-            }
-        }
+        if (pumpJSON == null) return;
+
         try {
-            reservoir = json.getDouble("reservoir");
+            JSONObject json = new JSONObject(pumpJSON);
+            reservoir = json.optDouble("reservoir", 0);
+            iob = json.optDouble("bolusiob", 0);
+            bat = json.optDouble("battery", 0);
         } catch (JSONException e) {
-        }
-        try {
-            iob = json.getDouble("bolusiob");
-        } catch (JSONException e) {
-        }
-        try {
-            bat = (json.getDouble("battery"));
-        } catch (JSONException e) {
+
         }
     }
 }
