@@ -64,4 +64,32 @@
         android:title="@string/Advanced"
         android:key="advanced_pref"
         android:fragment="com.thatguysservice.huami_xdrip.SettingsAdvancedFragment" />
+
+    <!-- ===== CYD (ESP32-2432S028 Cheap Yellow Display) ===== -->
+    <PreferenceCategory
+        android:title="CYD Display (ESP32-2432S028)"
+        android:key="cyd_category">
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="cyd_enabled"
+            android:title="Enable CYD display"
+            android:summary="Send BG readings to ESP32-2432S028 via Bluetooth" />
+        <SwitchPreference
+            android:defaultValue="true"
+            android:dependency="cyd_enabled"
+            android:key="cyd_send_readings"
+            android:title="Send readings"
+            android:summary="Push glucose data to CYD on each update" />
+        <EditTextPreference
+            android:dependency="cyd_enabled"
+            android:key="cyd_mac"
+            android:title="CYD MAC address"
+            android:summary="Leave empty to auto-scan for 'M5Stack' device"
+            android:inputType="textCapCharacters" />
+        <EditTextPreference
+            android:dependency="cyd_enabled"
+            android:key="cyd_ble_password"
+            android:title="BLE password"
+            android:summary="Auto-saved on first connection. Clear to reset." />
+    </PreferenceCategory>
 </PreferenceScreen>

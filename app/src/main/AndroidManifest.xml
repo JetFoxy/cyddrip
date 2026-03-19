@@ -115,5 +115,17 @@
         </receiver>
         <receiver android:name=".utils.bt.BackgroundScanReceiver" />
         <receiver android:name=".utils.framework.WakeLockTrampoline" />
+
+        <service
+            android:name=".watch.miband.MiBandService"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="connectedDevice|location" />
+
+        <service
+            android:name=".watch.cyd.CydService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

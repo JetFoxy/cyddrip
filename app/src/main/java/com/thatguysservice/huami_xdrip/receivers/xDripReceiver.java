@@ -9,6 +9,7 @@ import com.thatguysservice.huami_xdrip.BuildConfig;
 import com.thatguysservice.huami_xdrip.models.Helper;
 import com.thatguysservice.huami_xdrip.models.database.UserError;
 import com.thatguysservice.huami_xdrip.services.BroadcastService;
+import com.thatguysservice.huami_xdrip.watch.cyd.CydEntry;
 import com.thatguysservice.huami_xdrip.watch.miband.MiBandEntry;
 
 import static com.thatguysservice.huami_xdrip.services.BroadcastService.CMD_LOCAL_PREFIX;
@@ -50,6 +51,7 @@ public class xDripReceiver extends BroadcastReceiver {
             Bundle extras = intent.getExtras();
 
             MiBandEntry.sendToService(function, extras);
+            CydEntry.sendToService(function, extras);
         } catch (Exception e) {
             UserError.Log.e(TAG, "onReceive Error: " + e.toString());
         }

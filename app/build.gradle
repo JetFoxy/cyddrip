@@ -64,7 +64,7 @@ android {
             variant ->
                 variant.outputs.each {
                     output ->
-                        output.outputFileName = "WatchDrip_v${defaultConfig.versionName}.apk"
+                        output.outputFileName = "CYDDrip_v${defaultConfig.versionName}.apk"
                 }
         }
 

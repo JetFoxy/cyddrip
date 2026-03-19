@@ -31,6 +31,7 @@ import com.thatguysservice.huami_xdrip.models.Pref;
 import com.thatguysservice.huami_xdrip.models.PropertiesUpdate;
 import com.thatguysservice.huami_xdrip.models.database.UserError;
 import com.thatguysservice.huami_xdrip.repository.BgDataRepository;
+import com.thatguysservice.huami_xdrip.watch.cyd.CydEntry;
 import com.thatguysservice.huami_xdrip.watch.miband.MiBand;
 import com.thatguysservice.huami_xdrip.watch.miband.MiBandEntry;
 
@@ -69,6 +70,12 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 updateAdvancedMenuVisibility();
             }
 
+            if (key.startsWith("cyd")) {
+                UserError.Log.d("CydService", "Preference key: " + key);
+                if (!key.equals(CydEntry.PREF_CYD_ENABLED)) {
+                    CydEntry.refresh();
+                }
+            }
         }
     };
     BgDataRepository bgDataRepository;
@@ -76,6 +83,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     private TwoStatePreference deviceEnabledPref;
     private TwoStatePreference webServerEnabledPref;
     private TwoStatePreference xiaomiServerEnabledPref;
+    private TwoStatePreference cydEnabledPref;
     private ListPreference activeDevicePref;
 
     private Preference advancedPreferenseMenu;
@@ -146,6 +154,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         xiaomiServerEnabledPref.setOnPreferenceChangeListener((preference, newValue) -> prefEnableCallback(preference, (Boolean) newValue));
 
 
+
+        cydEnabledPref = findPreference(CydEntry.PREF_CYD_ENABLED);
+        if (cydEnabledPref != null) {
+            cydEnabledPref.setOnPreferenceChangeListener((preference, newValue) -> prefEnableCallback(preference, (Boolean) newValue));
+        }
 
         activeDevicePref = findPreference(MiBandEntry.PREF_MIBAND_ACTIVE_DEVICE);
         activeDevicePref.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
