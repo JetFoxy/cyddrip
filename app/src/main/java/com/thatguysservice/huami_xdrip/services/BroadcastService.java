@@ -17,6 +17,7 @@ import com.thatguysservice.huami_xdrip.models.Constants;
 import com.thatguysservice.huami_xdrip.models.Helper;
 import com.thatguysservice.huami_xdrip.models.database.UserError;
 import com.thatguysservice.huami_xdrip.utils.framework.WakeLockTrampoline;
+import com.thatguysservice.huami_xdrip.watch.cyd.CydEntry;
 import com.thatguysservice.huami_xdrip.watch.miband.MiBandEntry;
 import com.thatguysservice.huami_xdrip.watch.miband.MiBandService;
 
@@ -70,7 +71,7 @@ public class BroadcastService {
     private ForegroundServiceStarter foregroundServiceStarter;
 
     public static boolean shouldServiceRun() {
-        return MiBandEntry.isEnabled();
+        return MiBandEntry.isEnabled() || CydEntry.isEnabled();
     }
 
     public static void initialStartIfEnabled() {
