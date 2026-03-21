@@ -123,6 +123,12 @@ public class CydService extends Service {
     private void triggerUpdate(Bundle bundle) {
         if (bundle == null) return;
 
+        if (rxBleClient.getState() != com.polidea.rxandroidble2.RxBleClient.State.READY) {
+            UserError.Log.w(TAG, "BLE not ready: " + rxBleClient.getState());
+            stopSelf();
+            return;
+        }
+
         // Cancel any in-progress attempt before starting a new one
         disposables.clear();
         dataSent.set(false);
@@ -141,49 +147,57 @@ public class CydService extends Service {
 
     private void connectAndSend(String mac) {
         UserError.Log.d(TAG, "Connecting to " + mac);
-        RxBleDevice device = rxBleClient.getBleDevice(mac);
-
-        disposables.add(
-            device.establishConnection(false)
-                .timeout(OP_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                .subscribeOn(Schedulers.io())
-                .subscribe(
-                    this::onConnected,
-                    err -> {
-                        UserError.Log.e(TAG, "Connection failed: " + err);
-                        stopSelf();
-                    }
-                )
-        );
+        try {
+            RxBleDevice device = rxBleClient.getBleDevice(mac);
+            disposables.add(
+                device.establishConnection(false)
+                    .timeout(OP_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                    .subscribeOn(Schedulers.io())
+                    .subscribe(
+                        this::onConnected,
+                        err -> {
+                            UserError.Log.e(TAG, "Connection failed: " + err);
+                            stopSelf();
+                        }
+                    )
+            );
+        } catch (Exception e) {
+            UserError.Log.e(TAG, "connectAndSend error: " + e);
+            stopSelf();
+        }
     }
 
     private void scanByNameAndSend() {
         UserError.Log.d(TAG, "Scanning for " + CydProtocol.BLE_DEVICE_NAME);
+        try {
+            ScanFilter filter = new ScanFilter.Builder()
+                    .setServiceUuid(android.os.ParcelUuid.fromString(CydProtocol.SERVICE_UUID.toString()))
+                    .build();
 
-        ScanFilter filter = new ScanFilter.Builder()
-                .setServiceUuid(android.os.ParcelUuid.fromString(CydProtocol.SERVICE_UUID.toString()))
-                .build();
-
-        disposables.add(
-            rxBleClient.scanBleDevices(
-                    new ScanSettings.Builder().build(),
-                    filter)
-                .take(1)
-                .timeout(SCAN_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                .subscribeOn(Schedulers.io())
-                .subscribe(
-                    (ScanResult result) -> {
-                        String mac = result.getBleDevice().getMacAddress();
-                        UserError.Log.d(TAG, "Found CYD at " + mac);
-                        CydEntry.setMac(mac);  // persist so next update skips scan
-                        connectAndSend(mac);
-                    },
-                    err -> {
-                        UserError.Log.e(TAG, "Scan failed/timeout: " + err);
-                        stopSelf();
-                    }
-                )
-        );
+            disposables.add(
+                rxBleClient.scanBleDevices(
+                        new ScanSettings.Builder().build(),
+                        filter)
+                    .take(1)
+                    .timeout(SCAN_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                    .subscribeOn(Schedulers.io())
+                    .subscribe(
+                        (ScanResult result) -> {
+                            String mac = result.getBleDevice().getMacAddress();
+                            UserError.Log.d(TAG, "Found CYD at " + mac);
+                            CydEntry.setMac(mac);  // persist so next update skips scan
+                            connectAndSend(mac);
+                        },
+                        err -> {
+                            UserError.Log.e(TAG, "Scan failed/timeout: " + err);
+                            stopSelf();
+                        }
+                    )
+            );
+        } catch (Exception e) {
+            UserError.Log.e(TAG, "scanByNameAndSend error: " + e);
+            stopSelf();
+        }
     }
 
     // -------------------------------------------------------------------------
