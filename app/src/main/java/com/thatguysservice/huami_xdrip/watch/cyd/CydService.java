@@ -192,19 +192,24 @@ public class CydService extends Service {
     private void onConnected(RxBleConnection connection) {
         UserError.Log.d(TAG, "Connected to CYD");
 
-        // Subscribe to notifications — connection passed through closure, never stored in a field
+        // setupNotification must complete before we write OP_AUTH_INIT,
+        // otherwise some devices ignore the write and the handshake never starts.
         disposables.add(
             connection.setupNotification(CydProtocol.CHARACTERISTIC_UUID)
                 .subscribeOn(Schedulers.io())
-                .flatMap(observable -> observable)
+                .flatMap(notifObservable -> {
+                    // CCCD is now written — safe to kick off auth
+                    writeBytes(connection, CydProtocol.buildSimplePacket(CydProtocol.OP_AUTH_INIT));
+                    return notifObservable;
+                })
                 .subscribe(
                     bytes -> handleNotification(bytes, connection),
-                    err -> UserError.Log.e(TAG, "Notification error: " + err)
+                    err -> {
+                        UserError.Log.e(TAG, "Notification error: " + err);
+                        stopSelf();
+                    }
                 )
         );
-
-        // Initiate auth handshake
-        writeBytes(connection, CydProtocol.buildSimplePacket(CydProtocol.OP_AUTH_INIT));
     }
 
     // -------------------------------------------------------------------------

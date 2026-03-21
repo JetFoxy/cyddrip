@@ -131,9 +131,12 @@ public class CydProtocol {
      * Sends previous readings (skipping index 0 = current, which arrives via 0x20).
      * Count is limited by maxPayloadBytes (MTU - 3) so the packet fits in one BLE write.
      *
+     * Firmware assigns timestamps at 5-min intervals backward from the latest 0x20 reading,
+     * so up to 179 readings cover 3 hours at 5-min resolution (firmware historySize = 180).
+     *
      * Packet layout:
      *   Byte 0:   0x21
-     *   Byte 1:   count (number of BG values in this packet)
+     *   Byte 1:   count (number of BG values, max 179)
      *   Byte 2:   0x01
      *   Byte 3+:  BG values as uint16 big-endian, mg/dL, newest first
      *
@@ -143,7 +146,7 @@ public class CydProtocol {
     public static byte[] buildHistoryPacket(List<Integer> history, int maxPayloadBytes) {
         // index 0 is the current reading — skip it
         int maxByCount = (maxPayloadBytes - 3) / 2;  // how many readings fit in payload
-        int count = Math.min(history.size() - 1, Math.min(maxByCount, 35));
+        int count = Math.min(history.size() - 1, Math.min(maxByCount, 179)); // firmware historySize=180, -1 for current reading
         if (count <= 0) return null;
         byte[] pkt = new byte[3 + count * 2];
         pkt[0] = OP_BG_HISTORY;

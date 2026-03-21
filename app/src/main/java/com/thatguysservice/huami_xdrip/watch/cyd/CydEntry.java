@@ -25,7 +25,7 @@ public class CydEntry {
     public static final String PREF_CYD_BLE_PASSWORD   = "cyd_ble_password";
     public static final String PREF_CYD_SEND_READINGS  = "cyd_send_readings";
     public static final String PREF_CYD_BG_HISTORY     = "cyd_bg_history";
-    private static final int   BG_HISTORY_MAX          = 36;  // 36 × 5 min = 3 hours
+    private static final int   BG_HISTORY_MAX          = 180; // 180 × 1 min = 3 hours (matches firmware historySize)
 
     public static boolean isEnabled() {
         return Pref.getBooleanDefaultFalse(PREF_CYD_ENABLED);
@@ -80,21 +80,42 @@ public class CydEntry {
      * Query xDrip+ content provider for the last {@code limit} BG readings (mg/dL),
      * returned newest-first. Falls back to empty list on any error.
      */
+    // Firmware 0x21 handler assigns timestamps at exactly this interval
+    private static final long PREFILL_INTERVAL_MS = 5 * 60 * 1000L;
+    private static final long HISTORY_WINDOW_MS   = 3 * 60 * 60 * 1000L; // 3 hours
+
+    /**
+     * Query xDrip+ for BG readings within the last 3 hours, downsampled to ~5-min intervals.
+     * This matches the firmware's assumption that each 0x21 entry is 5 minutes apart,
+     * so 3 hours always maps to exactly 36 readings regardless of CGM frequency.
+     * Returns newest-first.
+     */
     public static List<Integer> queryXdripHistory(int limit) {
         List<Integer> readings = new ArrayList<>();
         try {
+            long now = System.currentTimeMillis();
+            long windowStart = now - HISTORY_WINDOW_MS;
+
             Uri uri = Uri.parse("content://com.eveningoutpost.dexdrip.BgReadings/");
             Cursor c = HuamiXdrip.getAppContext().getContentResolver().query(
                     uri,
                     new String[]{"calculated_value", "timestamp"},
-                    null, null,
+                    "timestamp > " + windowStart,
+                    null,
                     "timestamp DESC");
             if (c != null) {
                 int colVal = c.getColumnIndex("calculated_value");
-                int count = 0;
-                while (c.moveToNext() && count < limit) {
+                int colTs  = c.getColumnIndex("timestamp");
+                long lastAcceptedTs = Long.MAX_VALUE;
+                while (c.moveToNext() && readings.size() < limit) {
                     double val = colVal >= 0 ? c.getDouble(colVal) : 0;
-                    if (val > 0) { readings.add((int) Math.round(val)); count++; }
+                    long   ts  = colTs  >= 0 ? c.getLong(colTs)    : 0;
+                    if (val <= 0 || ts <= 0) continue;
+                    // Accept only if at least ~4.5 min gap from previous accepted reading
+                    if (lastAcceptedTs - ts >= PREFILL_INTERVAL_MS * 9 / 10) {
+                        readings.add((int) Math.round(val));
+                        lastAcceptedTs = ts;
+                    }
                 }
                 c.close();
             }
