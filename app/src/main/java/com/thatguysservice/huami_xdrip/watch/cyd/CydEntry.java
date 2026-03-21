@@ -104,11 +104,15 @@ public class CydEntry {
         return readings;  // newest first
     }
 
+    private static boolean backfillDone = false;
+
     /**
      * Backfill our stored history from xDrip if we have fewer than {@code minSize} entries.
-     * Should be called once per app session (result cached in prefs).
+     * Runs at most once per process lifetime — history only grows from there.
      */
     public static void backfillFromXdrip() {
+        if (backfillDone) return;
+        backfillDone = true;
         if (getBgHistory().size() >= BG_HISTORY_MAX) return;
         List<Integer> xdrip = queryXdripHistory(BG_HISTORY_MAX);
         if (xdrip.isEmpty()) return;

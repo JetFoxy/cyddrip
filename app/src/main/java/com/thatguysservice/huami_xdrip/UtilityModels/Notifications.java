@@ -20,6 +20,7 @@ import static com.thatguysservice.huami_xdrip.models.Helper.isRunningOreoOrLater
 
 public class Notifications {
     final static int ongoingNotificationId = 8811;
+    public static final int cydNotificationId = 8812;
 
     public static final String NOTIFICATION_CHANNEL_ID = "ongoingChannel";
     private static boolean notificationChannelsCreated;

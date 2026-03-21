@@ -11,7 +11,9 @@ import com.polidea.rxandroidble2.RxBleDevice;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanResult;
 import com.polidea.rxandroidble2.scan.ScanSettings;
-import com.thatguysservice.huami_xdrip.UtilityModels.ForegroundServiceStarter;
+import com.thatguysservice.huami_xdrip.HuamiXdrip;
+import com.thatguysservice.huami_xdrip.R;
+import com.thatguysservice.huami_xdrip.UtilityModels.Notifications;
 import com.thatguysservice.huami_xdrip.UtilityModels.RxBleProvider;
 import com.thatguysservice.huami_xdrip.models.BgData;
 import com.thatguysservice.huami_xdrip.models.database.UserError;
@@ -19,6 +21,7 @@ import com.thatguysservice.huami_xdrip.models.database.UserError;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.schedulers.Schedulers;
@@ -50,10 +53,14 @@ import static com.thatguysservice.huami_xdrip.services.BroadcastService.INTENT_F
 public class CydService extends Service {
 
     private static final String TAG             = "CydService";
-    private static final long   SCAN_TIMEOUT_MS = 15_000;
+    private static final long   SCAN_TIMEOUT_MS = 8_000;
     private static final long   OP_TIMEOUT_MS   = 30_000;  // total operation timeout
 
-    private final RxBleClient       rxBleClient = RxBleProvider.getSingleton();
+    private static final Pattern RE_RESERVOIR = Pattern.compile("(?i)res[:\\s]+([0-9]+(?:[.,][0-9]+)?)");
+    private static final Pattern RE_BATTERY   = Pattern.compile("(?i)bat[:\\s]+([0-9]+)\\s*%");
+    private static final Pattern RE_COB       = Pattern.compile("\\b([0-9]+)\\s*g\\b");
+
+    private final RxBleClient        rxBleClient = RxBleProvider.getSingleton();
     private final CompositeDisposable disposables = new CompositeDisposable();
 
     private volatile Bundle     pendingBundle = null;
@@ -62,10 +69,22 @@ public class CydService extends Service {
     // -------------------------------------------------------------------------
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        // Android 8+ requires startForeground() within 5 s of startForegroundService()
-        new ForegroundServiceStarter(this, this).start();
+    public void onCreate() {
+        super.onCreate();
+        try {
+            Notifications.createNotificationChannels(this);
+            startForeground(Notifications.cydNotificationId,
+                    Notifications.createNotification(
+                            HuamiXdrip.getAppContext().getString(R.string.huami_xdrip_running), this));
+        } catch (Exception e) {
+            UserError.Log.e(TAG, "startForeground failed: " + e);
+        }
+    }
 
+    // -------------------------------------------------------------------------
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_STICKY;
         String function = intent.getStringExtra(INTENT_FUNCTION_KEY);
         Bundle extras   = intent.getExtras();
@@ -79,6 +98,7 @@ public class CydService extends Service {
     @Override
     public void onDestroy() {
         disposables.clear();
+        stopForeground(true);
         super.onDestroy();
     }
 
@@ -129,7 +149,10 @@ public class CydService extends Service {
                 .subscribeOn(Schedulers.io())
                 .subscribe(
                     this::onConnected,
-                    err -> UserError.Log.e(TAG, "Connection failed: " + err)
+                    err -> {
+                        UserError.Log.e(TAG, "Connection failed: " + err);
+                        stopSelf();
+                    }
                 )
         );
     }
@@ -138,7 +161,7 @@ public class CydService extends Service {
         UserError.Log.d(TAG, "Scanning for " + CydProtocol.BLE_DEVICE_NAME);
 
         ScanFilter filter = new ScanFilter.Builder()
-                .setDeviceName(CydProtocol.BLE_DEVICE_NAME)
+                .setServiceUuid(android.os.ParcelUuid.fromString(CydProtocol.SERVICE_UUID.toString()))
                 .build();
 
         disposables.add(
@@ -155,7 +178,10 @@ public class CydService extends Service {
                         CydEntry.setMac(mac);  // persist so next update skips scan
                         connectAndSend(mac);
                     },
-                    err -> UserError.Log.e(TAG, "Scan failed/timeout: " + err)
+                    err -> {
+                        UserError.Log.e(TAG, "Scan failed/timeout: " + err);
+                        stopSelf();
+                    }
                 )
         );
     }
@@ -210,6 +236,7 @@ public class CydService extends Service {
                 UserError.Log.w(TAG, "Auth failed — clearing stored password");
                 CydEntry.setBlePassword("");
                 disposables.clear();
+                stopSelf();
                 break;
 
             case CydProtocol.OP_AUTH_ENTER:
@@ -251,12 +278,14 @@ public class CydService extends Service {
         } catch (Exception e) {
             UserError.Log.e(TAG, "Failed to parse BgData: " + e);
             disposables.clear();
+            stopSelf();
             return;
         }
 
         if (bgData.isNoBgData()) {
             UserError.Log.d(TAG, "No BG data to send");
             disposables.clear();
+            stopSelf();
             return;
         }
 
@@ -326,9 +355,7 @@ public class CydService extends Service {
         String statusLine = bundle.getString("external.statusLine");
         if (statusLine != null && !statusLine.isEmpty()) {
             if (pumpReservoirUnits <= 0) {
-                java.util.regex.Matcher m = java.util.regex.Pattern
-                        .compile("(?i)res[:\\s]+([0-9]+(?:[.,][0-9]+)?)")
-                        .matcher(statusLine);
+                java.util.regex.Matcher m = RE_RESERVOIR.matcher(statusLine);
                 if (m.find()) {
                     try {
                         pumpReservoirUnits = Double.parseDouble(
@@ -337,9 +364,7 @@ public class CydService extends Service {
                 }
             }
             if (pumpBatteryPct == 255) {
-                java.util.regex.Matcher m = java.util.regex.Pattern
-                        .compile("(?i)bat[:\\s]+([0-9]+)\\s*%")
-                        .matcher(statusLine);
+                java.util.regex.Matcher m = RE_BATTERY.matcher(statusLine);
                 if (m.find()) {
                     try {
                         int b = Integer.parseInt(m.group(1));
@@ -348,9 +373,7 @@ public class CydService extends Service {
                 }
             }
             // CoB: match standalone number followed by 'g' (e.g. "29g")
-            java.util.regex.Matcher cobM = java.util.regex.Pattern
-                    .compile("\\b([0-9]+)\\s*g\\b")
-                    .matcher(statusLine);
+            java.util.regex.Matcher cobM = RE_COB.matcher(statusLine);
             if (cobM.find()) {
                 try { cobGrams = Integer.parseInt(cobM.group(1)); }
                 catch (NumberFormatException ignored) {}
@@ -396,10 +419,12 @@ public class CydService extends Service {
                     b -> {
                         UserError.Log.d(TAG, "CYDDrip update sent OK");
                         disposables.clear();
+                        stopSelf();
                     },
                     err -> {
                         UserError.Log.e(TAG, "Send failed: " + err);
                         disposables.clear();
+                        stopSelf();
                     }
                 )
         );
