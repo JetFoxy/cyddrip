@@ -71,20 +71,28 @@ public class CydService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        startForegroundSafe();
+    }
+
+    // -------------------------------------------------------------------------
+
+    private void startForegroundSafe() {
         try {
             Notifications.createNotificationChannels(this);
             startForeground(Notifications.cydNotificationId,
                     Notifications.createNotification(
                             HuamiXdrip.getAppContext().getString(R.string.huami_xdrip_running), this));
         } catch (Exception e) {
-            UserError.Log.e(TAG, "startForeground failed: " + e);
+            UserError.Log.e(TAG, "startForeground failed (" + e.getClass().getSimpleName() + "): " + e.getMessage());
+            stopSelf();
         }
     }
 
-    // -------------------------------------------------------------------------
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // Re-call startForeground on every onStartCommand to satisfy Android's
+        // 5-second requirement in case onCreate() was skipped (service already running)
+        startForegroundSafe();
         if (intent == null) return START_STICKY;
         String function = intent.getStringExtra(INTENT_FUNCTION_KEY);
         Bundle extras   = intent.getExtras();
