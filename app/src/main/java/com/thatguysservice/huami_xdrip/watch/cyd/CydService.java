@@ -109,7 +109,7 @@ public class CydService extends Service {
         String function = intent.getStringExtra(INTENT_FUNCTION_KEY);
         Bundle extras   = intent.getExtras();
         handleCommand(function, extras);
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override
@@ -143,7 +143,7 @@ public class CydService extends Service {
     }
 
     private void triggerUpdate(Bundle bundle) {
-        if (bundle == null) return;
+        if (bundle == null) { stopSelf(); return; }
 
         if (rxBleClient.getState() != com.polidea.rxandroidble2.RxBleClient.State.READY) {
             UserError.Log.w(TAG, "BLE not ready: " + rxBleClient.getState());

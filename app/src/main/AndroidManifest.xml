@@ -32,6 +32,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" /> <!-- Used for reverse find device -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" /> <!-- Required on Android 14+ for CydService -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <uses-permission-sdk-23 android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
