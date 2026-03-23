@@ -194,7 +194,7 @@ public class CydService extends Service {
         UserError.Log.d(TAG, "Scanning for " + CydProtocol.BLE_DEVICE_NAME);
         try {
             ScanFilter filter = new ScanFilter.Builder()
-                    .setServiceUuid(android.os.ParcelUuid.fromString(CydProtocol.SERVICE_UUID.toString()))
+                    .setDeviceName(CydProtocol.BLE_DEVICE_NAME)
                     .build();
 
             disposables.add(

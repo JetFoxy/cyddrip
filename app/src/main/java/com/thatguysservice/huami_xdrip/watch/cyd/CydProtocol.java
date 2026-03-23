@@ -30,7 +30,7 @@ import java.util.UUID;
 public class CydProtocol {
 
     // BLE identifiers — must match ESP32 firmware
-    public static final String BLE_DEVICE_NAME      = "M5Stack";
+    public static final String BLE_DEVICE_NAME      = "CYDDrip";
     public static final UUID   SERVICE_UUID         = UUID.fromString("AF6E5F78-706A-43FB-B1F4-C27D7D5C762F");
     public static final UUID   CHARACTERISTIC_UUID  = UUID.fromString("6D810E9F-0983-4030-BDA7-C7C9A6A19C1C");
 
