@@ -85,15 +85,18 @@ public class CydService extends Service {
                 UserError.Log.e(TAG, "Undeliverable RxJava exception (suppressed): " + err));
     }
 
-    private void startForegroundSafe() {
+    /** @return true if startForeground succeeded, false if we should abort */
+    private boolean startForegroundSafe() {
         try {
             Notifications.createNotificationChannels(this);
             startForeground(Notifications.cydNotificationId,
                     Notifications.createNotification(
                             HuamiXdrip.getAppContext().getString(R.string.huami_xdrip_running), this));
+            return true;
         } catch (Exception e) {
             UserError.Log.e(TAG, "startForeground failed (" + e.getClass().getSimpleName() + "): " + e.getMessage());
             stopSelf();
+            return false;
         }
     }
 
@@ -101,7 +104,7 @@ public class CydService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         // Re-call startForeground on every onStartCommand to satisfy Android's
         // 5-second requirement in case onCreate() was skipped (service already running)
-        startForegroundSafe();
+        if (!startForegroundSafe()) return START_NOT_STICKY;
         if (intent == null) return START_STICKY;
         String function = intent.getStringExtra(INTENT_FUNCTION_KEY);
         Bundle extras   = intent.getExtras();
