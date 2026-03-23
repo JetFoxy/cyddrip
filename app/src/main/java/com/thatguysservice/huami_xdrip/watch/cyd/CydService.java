@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.plugins.RxJavaPlugins;
 import io.reactivex.schedulers.Schedulers;
 
 import static com.thatguysservice.huami_xdrip.services.BroadcastService.CMD_ALERT;
@@ -71,10 +72,18 @@ public class CydService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        installRxErrorHandler();
         startForegroundSafe();
     }
 
     // -------------------------------------------------------------------------
+
+    private void installRxErrorHandler() {
+        // When disposables.clear() cancels in-flight BLE ops, their errors become
+        // "undeliverable" in RxJava 2 and crash the process by default. Log and suppress.
+        RxJavaPlugins.setErrorHandler(err ->
+                UserError.Log.e(TAG, "Undeliverable RxJava exception (suppressed): " + err));
+    }
 
     private void startForegroundSafe() {
         try {
