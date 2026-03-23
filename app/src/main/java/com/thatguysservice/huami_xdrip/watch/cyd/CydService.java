@@ -105,6 +105,8 @@ public class CydService extends Service {
 
     @Override
     public void onDestroy() {
+        // Dispose here — NOT inside subscription callbacks — so RxAndroidBle
+        // can properly close the GATT connection without leaving ghost state.
         disposables.clear();
         stopForeground(true);
         super.onDestroy();
@@ -165,6 +167,7 @@ public class CydService extends Service {
                         this::onConnected,
                         err -> {
                             UserError.Log.e(TAG, "Connection failed: " + err);
+                            CydEntry.setMac("");  // force fresh scan next time
                             stopSelf();
                         }
                     )
@@ -262,7 +265,6 @@ public class CydService extends Service {
             case CydProtocol.OP_AUTH_FAIL:
                 UserError.Log.w(TAG, "Auth failed — clearing stored password");
                 CydEntry.setBlePassword("");
-                disposables.clear();
                 stopSelf();
                 break;
 
@@ -297,21 +299,19 @@ public class CydService extends Service {
         if (dataSent.getAndSet(true)) return;  // send once per connection attempt
 
         Bundle bundle = pendingBundle;
-        if (bundle == null) { disposables.clear(); return; }
+        if (bundle == null) { stopSelf(); return; }
 
         BgData bgData;
         try {
             bgData = new BgData(bundle);
         } catch (Exception e) {
             UserError.Log.e(TAG, "Failed to parse BgData: " + e);
-            disposables.clear();
             stopSelf();
             return;
         }
 
         if (bgData.isNoBgData()) {
             UserError.Log.d(TAG, "No BG data to send");
-            disposables.clear();
             stopSelf();
             return;
         }
@@ -445,12 +445,10 @@ public class CydService extends Service {
                 .subscribe(
                     b -> {
                         UserError.Log.d(TAG, "CYDDrip update sent OK");
-                        disposables.clear();
                         stopSelf();
                     },
                     err -> {
                         UserError.Log.e(TAG, "Send failed: " + err);
-                        disposables.clear();
                         stopSelf();
                     }
                 )
