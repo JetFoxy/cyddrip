@@ -20,11 +20,12 @@ import static com.thatguysservice.huami_xdrip.services.BroadcastService.INTENT_F
 
 public class CydEntry {
 
-    public static final String PREF_CYD_ENABLED       = "cyd_enabled";
-    public static final String PREF_CYD_MAC            = "cyd_mac";
-    public static final String PREF_CYD_BLE_PASSWORD   = "cyd_ble_password";
-    public static final String PREF_CYD_SEND_READINGS  = "cyd_send_readings";
-    public static final String PREF_CYD_BG_HISTORY     = "cyd_bg_history";
+    public static final String PREF_CYD_ENABLED          = "cyd_enabled";
+    public static final String PREF_CYD_MAC              = "cyd_mac";
+    public static final String PREF_CYD_BLE_PASSWORD     = "cyd_ble_password";
+    public static final String PREF_CYD_SEND_READINGS    = "cyd_send_readings";
+    public static final String PREF_CYD_BG_HISTORY       = "cyd_bg_history";
+    public static final String PREF_CYD_USE_AAPS_HISTORY = "cyd_use_aaps_history";
     private static final int   BG_HISTORY_MAX          = 180; // 180 × 1 min = 3 hours (matches firmware historySize)
 
     public static boolean isEnabled() {
@@ -120,28 +121,78 @@ public class CydEntry {
                 c.close();
             }
         } catch (Exception e) {
-            UserError.Log.d("CydEntry", "xDrip history query failed: " + e.getMessage());
+            UserError.Log.w("CydEntry", "xDrip history query failed: " + e.getMessage());
         }
         return readings;  // newest first
     }
 
-    private static boolean backfillDone = false;
+    /**
+     * Query AAPS content provider for BG history.
+     * URI: content://info.nightscout.androidaps/sgv
+     * Columns: sgv (mg/dL as double), date (ms timestamp).
+     * Returns newest-first, downsampled to ~5-min intervals.
+     */
+    public static List<Integer> queryAapsHistory(int limit) {
+        List<Integer> readings = new ArrayList<>();
+        try {
+            long now = System.currentTimeMillis();
+            long windowStart = now - HISTORY_WINDOW_MS;
+
+            Uri uri = Uri.parse("content://info.nightscout.androidaps/sgv");
+            Cursor c = HuamiXdrip.getAppContext().getContentResolver().query(
+                    uri,
+                    new String[]{"sgv", "date"},
+                    "date > " + windowStart,
+                    null,
+                    "date DESC");
+            if (c != null) {
+                int colVal = c.getColumnIndex("sgv");
+                int colTs  = c.getColumnIndex("date");
+                long lastAcceptedTs = Long.MAX_VALUE;
+                while (c.moveToNext() && readings.size() < limit) {
+                    double val = colVal >= 0 ? c.getDouble(colVal) : 0;
+                    long   ts  = colTs  >= 0 ? c.getLong(colTs)    : 0;
+                    if (val <= 0 || ts <= 0) continue;
+                    if (lastAcceptedTs - ts >= PREFILL_INTERVAL_MS * 9 / 10) {
+                        readings.add((int) Math.round(val));
+                        lastAcceptedTs = ts;
+                    }
+                }
+                c.close();
+            }
+        } catch (Exception e) {
+            UserError.Log.d("CydEntry", "AAPS history query failed: " + e.getMessage());
+        }
+        return readings;
+    }
+
+    static boolean backfillDone = false;
+
+    /** Call when the history source preference changes so next connect re-backfills. */
+    public static void resetBackfill() {
+        backfillDone = false;
+        Pref.setString(PREF_CYD_BG_HISTORY, "");
+    }
 
     /**
-     * Backfill our stored history from xDrip if we have fewer than {@code minSize} entries.
+     * Backfill stored history from xDrip or AAPS (based on preference).
      * Runs at most once per process lifetime — history only grows from there.
      */
     public static void backfillFromXdrip() {
         if (backfillDone) return;
         backfillDone = true;
         if (getBgHistory().size() >= BG_HISTORY_MAX) return;
-        List<Integer> xdrip = queryXdripHistory(BG_HISTORY_MAX);
-        if (xdrip.isEmpty()) return;
-        // xdrip list is newest-first; add oldest-first so addBgToHistory builds correct order
-        List<Integer> reversed = new ArrayList<>(xdrip);
+
+        boolean useAaps = Pref.getBooleanDefaultFalse(PREF_CYD_USE_AAPS_HISTORY);
+        List<Integer> history = useAaps ? queryAapsHistory(BG_HISTORY_MAX)
+                                        : queryXdripHistory(BG_HISTORY_MAX);
+        if (history.isEmpty()) return;
+
+        List<Integer> reversed = new ArrayList<>(history);
         Collections.reverse(reversed);
         for (int bg : reversed) addBgToHistory(bg);
-        UserError.Log.d("CydEntry", "Backfilled " + xdrip.size() + " readings from xDrip");
+        UserError.Log.d("CydEntry", "Backfilled " + history.size()
+                + " readings from " + (useAaps ? "AAPS" : "xDrip"));
     }
 
     public static boolean isSendReadings() {

@@ -438,18 +438,25 @@ public class CydService extends Service {
                 lastBolusUnits, lastBolusAgeMins, pumpIobUnits, pumpReservoirUnits, pumpBatteryPct,
                 cobGrams);
 
-        // Request larger MTU so we can send up to 35 history readings in one packet
+        UserError.Log.d(TAG, "History entries available: " + bgHistory.size());
+
         disposables.add(
             connection.requestMtu(512)
-                .onErrorReturn(e -> 23)  // fallback to default 20-byte payload
+                .onErrorReturn(e -> {
+                    UserError.Log.w(TAG, "MTU request failed, using default: " + e.getMessage());
+                    return 23;
+                })
                 .flatMap(mtu -> {
                     int payload = mtu - 3;  // ATT overhead
                     byte[] histPkt = CydProtocol.buildHistoryPacket(bgHistory, payload);
                     if (histPkt != null) {
+                        UserError.Log.d(TAG, "Sending history: " + (histPkt.length - 3) / 2
+                                + " entries (MTU=" + mtu + ")");
                         final byte[] hp = histPkt;
                         return connection.writeCharacteristic(CydProtocol.CHARACTERISTIC_UUID, hp)
                                 .flatMap(b -> connection.writeCharacteristic(CydProtocol.CHARACTERISTIC_UUID, mainPkt));
                     } else {
+                        UserError.Log.d(TAG, "No history packet (entries=" + bgHistory.size() + ", MTU=" + mtu + ")");
                         return connection.writeCharacteristic(CydProtocol.CHARACTERISTIC_UUID, mainPkt);
                     }
                 })

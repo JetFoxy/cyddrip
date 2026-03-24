@@ -71,8 +71,10 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
 
             if (key.startsWith("cyd")) {
-                UserError.Log.d("CydService", "Preference key: " + key);
-                if (!key.equals(CydEntry.PREF_CYD_ENABLED)) {
+                if (key.equals(CydEntry.PREF_CYD_USE_AAPS_HISTORY)) {
+                    CydEntry.resetBackfill();
+                } else if (!key.equals(CydEntry.PREF_CYD_ENABLED)
+                        && !key.equals(CydEntry.PREF_CYD_BG_HISTORY)) {
                     CydEntry.refresh();
                 }
             }

@@ -80,11 +80,17 @@
             android:key="cyd_send_readings"
             android:title="Send readings"
             android:summary="Push glucose data to CYD on each update" />
+        <SwitchPreference
+            android:defaultValue="false"
+            android:dependency="cyd_enabled"
+            android:key="cyd_use_aaps_history"
+            android:title="Use AAPS history"
+            android:summary="Pre-fill BG graph from AAPS instead of xDrip on first connect" />
         <EditTextPreference
             android:dependency="cyd_enabled"
             android:key="cyd_mac"
             android:title="CYD MAC address"
-            android:summary="Leave empty to auto-scan for 'M5Stack' device"
+            android:summary="Leave empty to auto-scan for 'CYDDrip' device"
             android:inputType="textCapCharacters" />
         <EditTextPreference
             android:dependency="cyd_enabled"

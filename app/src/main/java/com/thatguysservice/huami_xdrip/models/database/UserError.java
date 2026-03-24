@@ -120,20 +120,22 @@ public class UserError extends Model {
 
 
     public static void cleanup() {
-        new Cleanup().execute(deletable());
+        new AsyncTask<Void, Void, Void>() {
+            @Override
+            protected Void doInBackground(Void... v) {
+                cleanupRaw();
+                return null;
+            }
+        }.execute();
     }
 
-    public static void cleanupByTimeAndClause(final long timestamp, final String clause) {
-        Delete.from(UserError.class)
-                .where("timestamp < ? AND ?%", timestamp, clause)
-                .execute();
-    }
-
-    public synchronized static void cleanupRaw() {
-        final long timestamp = Helper.tsl();
-        cleanupByTimeAndClause(timestamp - Constants.DAY_IN_MS, "severity < 3");
-        cleanupByTimeAndClause(timestamp - Constants.DAY_IN_MS * 2, "severity = 3");
-        cleanupByTimeAndClause(timestamp - Constants.DAY_IN_MS * 2, "severity > 3");
+public synchronized static void cleanupRaw() {
+        final long now = Helper.tsl();
+        final long oneDayAgo  = now - Constants.DAY_IN_MS;
+        final long twoDaysAgo = now - Constants.DAY_IN_MS * 2;
+        Delete.from(UserError.class).where("timestamp < ? AND severity < 3",  oneDayAgo).execute();
+        Delete.from(UserError.class).where("timestamp < ? AND severity = 3",  twoDaysAgo).execute();
+        Delete.from(UserError.class).where("timestamp < ? AND severity > 3",  twoDaysAgo).execute();
         ReActiveAndroid.getModelAdapter(UserError.class).getModelCache().clear();
     }
 
@@ -398,9 +400,8 @@ public class UserError extends Model {
         }
 
         public static boolean shouldLogTag(final String tag, final int level) {
-            //final Integer levelForTag = extraTags.get(tag != null ? tag.toLowerCase() : "");
-            //return levelForTag != null && level >= levelForTag;
-            return true;
+            final Integer levelForTag = extraTags.get(tag != null ? tag.toLowerCase() : "");
+            return levelForTag != null && level >= levelForTag;
         }
 
     }

@@ -37,6 +37,12 @@
 
     <uses-permission-sdk-23 android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
+    <!-- Android 11+: declare packages we query via content providers -->
+    <queries>
+        <package android:name="com.eveningoutpost.dexdrip" />
+        <package android:name="info.nightscout.androidaps" />
+    </queries>
+
     <application
         android:name=".HuamiXdrip"
         android:allowBackup="true"
